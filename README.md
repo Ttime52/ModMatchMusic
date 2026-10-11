@@ -1,2 +1,2 @@
-# ModMusic
+# ModMatchMusic
 AI Personalized Playlist Maker
