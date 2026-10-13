@@ -1,0 +1,14 @@
+numpy
+pandas
+pyyaml
+tqdm
+scikit-learn
+torch
+transformers
+datasets
+sentence-transformers
+faiss-cpu
+fastapi
+uvicorn
+httpx
+pytest

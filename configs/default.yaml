@@ -1,0 +1,10 @@
+seed: 42
+paths:
+  raw: data/raw
+  processed: data/processed
+  results: results
+data:
+  max_lyrics_tokens: 256
+  split: {train: 0.8, val: 0.1, test: 0.1}
+models:
+  text_encoder: ""   # กรอกหลังเลือกใน Issue #5

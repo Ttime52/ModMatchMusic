@@ -218,3 +218,35 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ===== ModMatchMusic =====
+# ข้อมูล (รวมเนื้อเพลง ห้ามเข้า git เด็ดขาด)
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+*.csv.gz
+*.parquet
+
+# embedding และ index
+*.npy
+*.npz
+*.faiss
+*.index
+
+# model checkpoints
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+checkpoints/
+
+# experiment tracking
+wandb/
+mlruns/
+
+# secrets และอื่นๆ
+.env
+.DS_Store
+.vscode/
+.idea/
