@@ -55,3 +55,4 @@ AI Personalized Playlist Maker
 ```
 
 ## Data License
+The dataset is from Kaggle Datset: https://www.kaggle.com/datasets/nikhilnayak123/5-million-song-lyrics-dataset?resource=download and selected most viewed 5000 songs from genius.com
