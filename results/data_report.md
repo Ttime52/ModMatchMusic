@@ -2,10 +2,11 @@
 
 - Raw rows: 5000
 - Dropped (missing_fields): 0
+- Dropped (empty_identity_fields): 0
 - Dropped (empty_lyrics): 0
 - Dropped (lyrics_too_short): 4
-- Dropped (duplicates_or_variants): 0
 - Dropped (no_mapped_genre): 0
+- Dropped (duplicates_or_variants): 0
 - Final tracks: 4996
 - Unique artists: 1600
 - Lyrics length (words): mean 525, median 458

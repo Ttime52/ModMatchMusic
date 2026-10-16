@@ -140,6 +140,11 @@ def main():
     # 2) Clean lyrics and remove empty/short entries.
     for column in ("title", "artist", "lyrics", "genre"):
         df[column] = df[column].astype(str).str.strip()
+
+    n = len(df)
+    df = df[df["title"].ne("") & df["artist"].ne("")]
+    drops["empty_identity_fields"] = n - len(df)
+
     df["lyrics_text"] = df["lyrics"].map(clean_lyrics)
     n = len(df)
     df = df[df["lyrics_text"].ne("")]
@@ -150,7 +155,28 @@ def main():
     df = df[df["n_words"] >= d["min_lyrics_words"]]
     drops["lyrics_too_short"] = n - len(df)
 
-    # 3) Keep the longest non-variant copy of duplicate songs.
+    # 3) Map the dataset's tag/genre values to canonical genre labels.
+    # Validate genres before deduplication so an unmapped copy cannot hide a
+    # duplicate whose genre is usable.
+    df["raw_genres"] = df["genre"].map(parse_genres)
+    gmap_path = Path(d["genre_map"])
+    if not gmap_path.exists():
+        path = _write_raw_genre_counts(df, results_dir)
+        raise FileNotFoundError(
+            f"Missing {gmap_path}; raw genre counts were written to {path}"
+        )
+
+    gmap = json.loads(gmap_path.read_text(encoding="utf-8"))
+    if not isinstance(gmap, dict):
+        raise ValueError(f"Genre map must be a JSON object: {gmap_path}")
+    gmap = {normalize_text(k): v for k, v in gmap.items()}
+
+    df["genres"] = df["raw_genres"].map(lambda genres: map_genres(genres, gmap))
+    n = len(df)
+    df = df[df["genres"].str.len() > 0]
+    drops["no_mapped_genre"] = n - len(df)
+
+    # 4) Keep the longest non-variant copy of duplicate songs.
     df["artist_norm"] = df["artist"].map(lambda s: strip_punct(normalize_text(s)))
     df["title_base"] = df["title"].map(base_title)
     df["is_variant"] = df["title"].map(
@@ -166,24 +192,6 @@ def main():
         .drop_duplicates(["artist_norm", "title_base"], keep="first")
     )
     drops["duplicates_or_variants"] = n - len(df)
-
-    # 4) Map the dataset's tag/genre values to canonical genre labels.
-    df["raw_genres"] = df["genre"].map(parse_genres)
-    gmap_path = Path(d["genre_map"])
-    if not gmap_path.exists():
-        path = _write_raw_genre_counts(df, results_dir)
-        print(f"Missing {gmap_path}; raw genre counts were written to {path}")
-        return
-
-    gmap = json.loads(gmap_path.read_text(encoding="utf-8"))
-    if not isinstance(gmap, dict):
-        raise ValueError(f"Genre map must be a JSON object: {gmap_path}")
-    gmap = {normalize_text(k): v for k, v in gmap.items()}
-
-    df["genres"] = df["raw_genres"].map(lambda genres: map_genres(genres, gmap))
-    n = len(df)
-    df = df[df["genres"].str.len() > 0]
-    drops["no_mapped_genre"] = n - len(df)
 
     # 5) Add stable language/id fields and write the processed dataset.
     df["language"] = df["lyrics_text"].map(detect_lang)
