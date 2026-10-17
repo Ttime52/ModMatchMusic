@@ -26,8 +26,7 @@ def strip_punct(s: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"[^\w\s]", "", s)).strip()
 
 
-def base_title(title) -> str:
-    """Remove common release/version markers from a song title."""
+def remove_version_markers(title) -> str:
     t = normalize_text(title)
     t = re.sub(
         r"[\(\[][^)\]]*[\)\]]",
@@ -35,11 +34,16 @@ def base_title(title) -> str:
         t,
     )
     t = re.sub(r"\s-\s.*" + VERSION_RE.pattern + r".*$", "", t)
-    return strip_punct(t)
+    return t.strip()
+
+def base_title(title) -> str:
+    """Remove common release/version markers from a song title."""
+    return strip_punct(remove_version_markers(title))
 
 def safe_title_key(title) -> str:
-    key = base_title(title)
-    return key if key else normalize_text(title)
+    t = remove_version_markers(title)
+    key = strip_punct(t)
+    return key if key else t
 
 
 def safe_artist_key(artist) -> str:

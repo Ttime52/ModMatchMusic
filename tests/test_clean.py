@@ -137,6 +137,45 @@ def test_track_ids_for_punctuation_titles_are_unique():
 
     assert id1 != id2
 
+def test_punctuation_title_versions_share_key():
+    assert clean.safe_title_key("!!!") == clean.safe_title_key("!!! (Live)")
+    assert clean.safe_title_key("???") == clean.safe_title_key("??? (Remastered)")
+    assert clean.safe_title_key("!!!") != clean.safe_title_key("???")
+
+def test_punctuation_live_version_deduplicated(monkeypatch, tmp_path):
+    output_path, _ = _configure_pipeline(
+        monkeypatch,
+        tmp_path,
+        [
+            {
+                "title": "!!!",
+                "artist": "Artist A",
+                "genre": "pop",
+                "lyrics": _lyrics(),
+            },
+            {
+                "title": "!!! (Live)",
+                "artist": "Artist A",
+                "genre": "pop",
+                "lyrics": _lyrics(),
+            },
+            {
+                "title": "???",
+                "artist": "Artist A",
+                "genre": "pop",
+                "lyrics": _lyrics(),
+            },
+        ],
+        genre_map={"pop": "pop"},
+    )
+
+    clean.main()
+    output = pd.read_parquet(output_path)
+
+    assert len(output) == 2
+    assert set(output["title"]) == {"!!!", "???"}
+    assert output["track_id"].is_unique
+
 def test_punctuation_titles_preserved_in_pipeline(monkeypatch, tmp_path):
     output_path, _ = _configure_pipeline(
         monkeypatch,
