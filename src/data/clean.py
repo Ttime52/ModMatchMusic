@@ -26,8 +26,7 @@ def strip_punct(s: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"[^\w\s]", "", s)).strip()
 
 
-def base_title(title) -> str:
-    """Remove common release/version markers from a song title."""
+def remove_version_markers(title) -> str:
     t = normalize_text(title)
     t = re.sub(
         r"[\(\[][^)\]]*[\)\]]",
@@ -35,7 +34,21 @@ def base_title(title) -> str:
         t,
     )
     t = re.sub(r"\s-\s.*" + VERSION_RE.pattern + r".*$", "", t)
-    return strip_punct(t)
+    return t.strip()
+
+def base_title(title) -> str:
+    """Remove common release/version markers from a song title."""
+    return strip_punct(remove_version_markers(title))
+
+def safe_title_key(title) -> str:
+    t = remove_version_markers(title)
+    key = strip_punct(t)
+    return key if key else t
+
+
+def safe_artist_key(artist) -> str:
+    key = strip_punct(normalize_text(artist))
+    return key if key else normalize_text(artist)
 
 
 def clean_lyrics(s) -> str:
@@ -177,11 +190,12 @@ def main():
     drops["no_mapped_genre"] = n - len(df)
 
     # 4) Keep the longest non-variant copy of duplicate songs.
-    df["artist_norm"] = df["artist"].map(lambda s: strip_punct(normalize_text(s)))
-    df["title_base"] = df["title"].map(base_title)
+    df["artist_norm"] = df["artist"].map(safe_artist_key)
+    df["title_base"] = df["title"].map(safe_title_key)
     df["is_variant"] = df["title"].map(
         lambda t: strip_punct(normalize_text(t)) != base_title(t)
     )
+    
     n = len(df)
     df = (
         df.sort_values(
