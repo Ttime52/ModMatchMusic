@@ -4,6 +4,19 @@ paths:
   processed: data/processed
   results: results
 data:
+  raw_file: data/raw/hapan.csv
+  output_file: data/processed/tracks.parquet
+  genre_map: configs/genre_map.json
+  columns:            # canonical field: raw CSV column
+    title: title
+    genre: tag
+    artist: artist
+    year: year
+    views: views
+    features: features
+    lyrics: lyrics
+    id: id
+  min_lyrics_words: 30
   max_lyrics_tokens: 256
   split: {train: 0.8, val: 0.1, test: 0.1}
 models:
