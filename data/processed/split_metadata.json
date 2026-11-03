@@ -1,0 +1,38 @@
+{
+    "method": "GroupShuffleSplit",
+    "seed": 26,
+    "seed_search_range": [
+        0,
+        99
+    ],
+    "target_ratio": {
+        "train": 0.8,
+        "validation": 0.1,
+        "test": 0.1
+    },
+    "actual_ratio": {
+        "train": 0.7916333066453163,
+        "validation": 0.10188150520416334,
+        "test": 0.10648518815052041
+    },
+    "song_counts": {
+        "total": 4996,
+        "train": 3955,
+        "validation": 509,
+        "test": 532
+    },
+    "artist_counts": {
+        "train": 1280,
+        "validation": 160,
+        "test": 160
+    },
+    "genres": [
+        "country",
+        "hip-hop",
+        "other",
+        "pop",
+        "r&b",
+        "rock"
+    ],
+    "ratio_error_percentage_points": 1.6733386709367473
+}
