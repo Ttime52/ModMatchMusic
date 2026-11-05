@@ -1,136 +1,84 @@
+import importlib
 import json
-import pandas as pd
 from pathlib import Path
 
-#ตรวจว่าไฟล์ Parquet ที่บันทึกไว้มีจำนวนเพลงตรงกับ Metadata
-def test_split_song_counts():
-    data_dir = Path("data/processed")
+import pandas as pd
+import pytest
 
-    train_df = pd.read_parquet(data_dir / "train.parquet")
-    val_df = pd.read_parquet(data_dir / "val.parquet")
-    test_df = pd.read_parquet(data_dir / "test.parquet")
+from src.data.split import split_dataset, write_split_outputs
+from src.utils.config import load_config
 
-    with open(data_dir / "split_metadata.json", encoding="utf-8") as f:
-        metadata = json.load(f)
 
-    assert len(train_df) == metadata["song_counts"]["train"]
-    assert len(val_df) == metadata["song_counts"]["validation"]
-    assert len(test_df) == metadata["song_counts"]["test"]
+def synthetic_tracks():
+    rows = []
+    for artist_idx in range(10):
+        for song_idx in range(2):
+            rows.append({
+                "track_id": f"track-{artist_idx}-{song_idx}",
+                "artist": f"artist-{artist_idx}",
+                "genres": ["pop", "rock"],
+                "title": f"song-{artist_idx}-{song_idx}",
+            })
+    return pd.DataFrame(rows)
 
-#ตรวจ Artist Leakage
-def test_no_artist_leakage():
-    data_dir = Path("data/processed")
 
-    train_df = pd.read_parquet(data_dir / "train.parquet")
-    val_df = pd.read_parquet(data_dir / "val.parquet")
-    test_df = pd.read_parquet(data_dir / "test.parquet")
+def test_split_uses_config_ratios_and_preserves_rows():
+    df = synthetic_tracks()
+    splits, metadata = split_dataset(df, load_config()["data"]["split"])
+    assert sum(len(part) for part in splits.values()) == len(df)
+    assert metadata["song_counts"]["total"] == len(df)
+    assert metadata["song_counts"]["train"] == len(splits["train"])
+    assert metadata["song_counts"]["validation"] == len(splits["validation"])
+    assert metadata["song_counts"]["test"] == len(splits["test"])
+    assert metadata["seed_search_range"] == [0, 99]
 
-    train_artists = set(train_df["artist"])
-    val_artists = set(val_df["artist"])
-    test_artists = set(test_df["artist"])
 
-    assert train_artists.isdisjoint(val_artists) #isdisjoint เป็น Method ของ Python set ที่ใช้ตรวจว่า Set สองชุดไม่มีสมาชิกซ้ำกันเลยหรือไม่
-    assert train_artists.isdisjoint(test_artists)
-    assert val_artists.isdisjoint(test_artists)
+def test_split_is_reproducible_and_disjoint():
+    df = synthetic_tracks()
+    first, first_meta = split_dataset(df, {"train": 0.8, "val": 0.1, "test": 0.1})
+    second, second_meta = split_dataset(df, {"train": 0.8, "val": 0.1, "test": 0.1})
+    assert first_meta["seed"] == second_meta["seed"]
+    for name in first:
+        assert set(first[name]["track_id"]) == set(second[name]["track_id"])
+    assert set(first["train"]["artist"]).isdisjoint(first["validation"]["artist"])
+    assert set(first["train"]["artist"]).isdisjoint(first["test"]["artist"])
+    assert set(first["validation"]["artist"]).isdisjoint(first["test"]["artist"])
 
-#ตรวจว่า ทั้ง 3 Split มีครบทุก Genre ที่อยู่ใน Dataset ต้นฉบับ
-def test_genre_coverage():
-    data_dir = Path("data/processed")
 
-    df = pd.read_parquet(data_dir / "tracks.parquet")
-    train_df = pd.read_parquet(data_dir / "train.parquet")
-    val_df = pd.read_parquet(data_dir / "val.parquet")
-    test_df = pd.read_parquet(data_dir / "test.parquet")
+def test_split_preserves_genre_coverage():
+    splits, metadata = split_dataset(synthetic_tracks(), {"train": 0.8, "val": 0.1, "test": 0.1})
+    assert all({g for row in part["genres"] for g in row} == set(metadata["genres"]) for part in splits.values())
 
-    all_genres = set()
-    for genres in df["genres"]:
-        for genre in genres:
-            all_genres.add(genre)
 
-    train_genres = set()
-    val_genres = set()
-    test_genres = set()
-
-    for genres in train_df["genres"]:
-        for genre in genres:
-            train_genres.add(genre)
-
-    for genres in val_df["genres"]:
-        for genre in genres:
-            val_genres.add(genre)
-
-    for genres in test_df["genres"]:
-        for genre in genres:
-            test_genres.add(genre)
-
-    assert train_genres == all_genres
-    assert val_genres == all_genres
-    assert test_genres == all_genres
-
-# ตรวจว่า ไม่มีเพลงเดียวกันอยู่ข้าม Train, Validation และ Test โดยใช้ track_id
-def test_no_track_leakage():
-    data_dir = Path("data/processed")
-
-    train_df = pd.read_parquet(data_dir / "train.parquet")
-    val_df = pd.read_parquet(data_dir / "val.parquet")
-    test_df = pd.read_parquet(data_dir / "test.parquet")
-
-    train_tracks = set(train_df["track_id"])
-    val_tracks = set(val_df["track_id"])
-    test_tracks = set(test_df["track_id"])
-
-    assert train_tracks.isdisjoint(val_tracks)
-    assert train_tracks.isdisjoint(test_tracks)
-    assert val_tracks.isdisjoint(test_tracks)
-
-    assert train_df["track_id"].is_unique
-    assert val_df["track_id"].is_unique
-    assert test_df["track_id"].is_unique
-
-#อ่าน Dataset ต้นฉบับและ Seed จาก Metadata แล้วแบ่งข้อมูลใหม่ จากนั้นเปรียบเทียบ track_id กับไฟล์ Parquet ที่บันทึกไว้
-from sklearn.model_selection import GroupShuffleSplit
-
-def test_split_reproducibility():
-    data_dir = Path("data/processed")
-
-    df = pd.read_parquet(data_dir / "tracks.parquet")
-    train_df = pd.read_parquet(data_dir / "train.parquet")
-    val_df = pd.read_parquet(data_dir / "val.parquet")
-    test_df = pd.read_parquet(data_dir / "test.parquet")
-
-    with open(data_dir / "split_metadata.json", encoding="utf-8") as f:
-        metadata = json.load(f)
-
-    seed = metadata["seed"]
-
-    # แบ่งข้อมูลใหม่ด้วย Seed ที่บันทึกไว้
-    splitter = GroupShuffleSplit(
-        n_splits=1,
-        test_size=0.2,
-        random_state=seed
+def test_custom_non_contiguous_seed_search_is_recorded_accurately():
+    _, metadata = split_dataset(
+        synthetic_tracks(),
+        {"train": 0.8, "val": 0.1, "test": 0.1},
+        seed_search=(seed for seed in (2, 5, 9)),
     )
+    assert metadata["seed_search_range"] == {"values": [2, 5, 9]}
 
-    train_idx, temp_idx = next(
-        splitter.split(X=df, groups=df["artist"])
-    )
 
-    new_train_df = df.iloc[train_idx]
-    temp_df = df.iloc[temp_idx]
+def test_outputs_and_metadata_are_written(tmp_path):
+    splits, metadata = split_dataset(synthetic_tracks(), {"train": 0.8, "val": 0.1, "test": 0.1})
+    write_split_outputs(splits, metadata, tmp_path)
+    assert (tmp_path / "train.parquet").exists()
+    assert (tmp_path / "val.parquet").exists()
+    assert (tmp_path / "test.parquet").exists()
+    saved = json.loads((tmp_path / "split_metadata.json").read_text())
+    assert saved["song_counts"] == metadata["song_counts"]
 
-    splitter_2 = GroupShuffleSplit(
-        n_splits=1,
-        test_size=0.5,
-        random_state=seed
-    )
 
-    val_idx, test_idx = next(
-        splitter_2.split(X=temp_df, groups=temp_df["artist"])
-    )
+def test_import_has_no_file_io_side_effects(monkeypatch):
+    def fail(*args, **kwargs):
+        raise AssertionError("import performed file I/O")
 
-    new_val_df = temp_df.iloc[val_idx]
-    new_test_df = temp_df.iloc[test_idx]
+    monkeypatch.setattr(pd, "read_parquet", fail)
+    monkeypatch.setattr(pd.DataFrame, "to_parquet", fail)
+    monkeypatch.setattr(Path, "mkdir", fail)
+    importlib.reload(importlib.import_module("src.data.split"))
 
-    # TODO: เปรียบเทียบ Track ID ของข้อมูลใหม่กับไฟล์เดิม
-    assert set(new_train_df["track_id"]) == set(train_df["track_id"])
-    assert set(new_val_df["track_id"]) == set(val_df["track_id"])
-    assert set(new_test_df["track_id"]) == set(test_df["track_id"])
+
+def test_invalid_ratios_fail():
+    with pytest.raises(ValueError, match="sum to 1"):
+        split_dataset(synthetic_tracks(), {"train": 0.7, "val": 0.1, "test": 0.1})
