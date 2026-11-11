@@ -4,11 +4,16 @@ from pathlib import Path
 import pandas as pd
 from sklearn.model_selection import GroupShuffleSplit
 
+from src.data.clean import safe_artist_key
 from src.utils.config import load_config
 
 
 def _genres_in(df):
     return {genre for genres in df["genres"] for genre in genres}
+
+
+def _artist_keys(df):
+    return df["artist"].map(safe_artist_key)
 
 
 def _seed_search_metadata(seed_candidates):
@@ -24,12 +29,12 @@ def _split_once(df, ratios, seed):
     if not 0 < temporary_ratio < 1:
         raise ValueError("Validation and test ratios must sum to a value between 0 and 1")
     first = GroupShuffleSplit(n_splits=1, test_size=temporary_ratio, random_state=seed)
-    train_idx, temp_idx = next(first.split(X=df, groups=df["artist"]))
+    train_idx, temp_idx = next(first.split(X=df, groups=_artist_keys(df)))
     train_df, temp_df = df.iloc[train_idx], df.iloc[temp_idx]
     second = GroupShuffleSplit(
         n_splits=1, test_size=ratios["test"] / temporary_ratio, random_state=seed
     )
-    val_idx, test_idx = next(second.split(X=temp_df, groups=temp_df["artist"]))
+    val_idx, test_idx = next(second.split(X=temp_df, groups=_artist_keys(temp_df)))
     return train_df, temp_df.iloc[val_idx], temp_df.iloc[test_idx]
 
 
@@ -54,7 +59,7 @@ def split_dataset(df, split_config, seed_search=range(100)):
         raise ValueError("No valid seed found in range")
     error, best_seed, train_df, val_df, test_df, actual = best
     parts = (train_df, val_df, test_df)
-    artist_sets = [set(part["artist"]) for part in parts]
+    artist_sets = [set(_artist_keys(part)) for part in parts]
     if any(artist_sets[i] & artist_sets[j] for i in range(3) for j in range(i + 1, 3)):
         raise AssertionError("Artist leakage between splits")
     track_sets = [set(part["track_id"]) for part in parts]
@@ -82,6 +87,23 @@ def write_split_outputs(splits, metadata, output_dir):
     splits["train"].to_parquet(output_dir / "train.parquet", index=False)
     splits["validation"].to_parquet(output_dir / "val.parquet", index=False)
     splits["test"].to_parquet(output_dir / "test.parquet", index=False)
+    assignments = (
+        pd.concat(
+            [
+                part[["track_id"]].assign(split=split_name)
+                for split_name, part in (
+                    ("train", splits["train"]),
+                    ("validation", splits["validation"]),
+                    ("test", splits["test"]),
+                )
+            ],
+            ignore_index=True,
+        )
+        [["track_id", "split"]]
+        .sort_values("track_id")
+        .reset_index(drop=True)
+    )
+    assignments.to_csv(output_dir / "split_assignments.csv", index=False)
     with (output_dir / "split_metadata.json").open("w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=4, ensure_ascii=False)
 
