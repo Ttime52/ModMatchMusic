@@ -226,6 +226,7 @@ data/processed/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 !data/processed/split_metadata.json
+!data/processed/split_assignments.csv
 *.csv.gz
 *.parquet
 
