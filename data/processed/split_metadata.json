@@ -1,6 +1,6 @@
 {
     "method": "GroupShuffleSplit",
-    "seed": 26,
+    "seed": 15,
     "seed_search_range": [
         0,
         99
@@ -11,15 +11,15 @@
         "test": 0.1
     },
     "actual_ratio": {
-        "train": 0.7916333066453163,
-        "validation": 0.10188150520416334,
-        "test": 0.10648518815052041
+        "train": 0.800640512409928,
+        "validation": 0.10248198558847077,
+        "test": 0.09687750200160128
     },
     "song_counts": {
         "total": 4996,
-        "train": 3955,
-        "validation": 509,
-        "test": 532
+        "train": 4000,
+        "validation": 512,
+        "test": 484
     },
     "artist_counts": {
         "train": 1280,
@@ -34,5 +34,5 @@
         "r&b",
         "rock"
     ],
-    "ratio_error_percentage_points": 1.6733386709367473
+    "ratio_error_percentage_points": 0.6244995996797398
 }
